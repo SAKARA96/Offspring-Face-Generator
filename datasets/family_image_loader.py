@@ -23,6 +23,7 @@ class Dataset(object):
         self.is_train = is_train
         self.h = h
         self.w = w
+        self.data = None
         #self.data_augmentation = data_augmentation
         #self.center_crop = centor_crop
 
@@ -34,9 +35,45 @@ class Dataset(object):
     it returns dict of key = fam_id_imgNo and value= encoded images [This is a 4 layer tuple]
     for f*m*c images
     '''
-    def get_data(self, dir_id):
-        np_images={}
+    def get_data(self, id):
+        return self.data[id]
+
         
+
+    @property
+    def ids(self):
+        return self._ids
+
+    def __len__(self):
+        return len(self.ids)
+
+    def __repr__(self):
+        return 'Dataset (%s, %d examples)' % (
+            self.name,
+            len(self)
+        )
+
+
+def create_default_splits(path, is_train=True, h=256, w=256):
+    family_ids = all_ids(path)
+    total_family_size = len(family_ids)
+    test_families_size = 100  #these are 100 families which are made unseen during test
+    training_families_size = total_family_size - test_families_size
+
+    training_img = family_to_img_explosion(family_ids[0:training_families_size], path)
+    dataset_train = Dataset(training_img.keys(), name='train', h=h, w=w, is_train=False)
+    dataset_train.data = training_img
+
+    test_img = family_to_img_explosion(family_ids[training_families_size:], path)
+    dataset_test = Dataset(test_img.keys(), name='test', h=h, w=w, is_train=False)
+    dataset_test.data = test_img
+
+    return dataset_train, dataset_test
+
+def family_to_img_explosion(family_ids, path):
+    np_images={}
+
+    for dir_id in family_ids:
         dic={}
         sub=[a for a in listdir(path+"/"+dir_id)]
         flag=0
@@ -61,50 +98,24 @@ class Dataset(object):
             else:
                 flag=1
                 break
-        fid = 1
+        img_id = 1
 
         if flag!=1:
             for x in dic['father']:
                 for y in dic['mother']:
                     for z in dic['child']:
-                        np_images[dir_id+'_'+str(fid)] = [x,y,z,dic['gender']]
-                        fid += 1
-        return np_images
+                        np_images[dir_id+'_'+str(img_id)] = np.array([x,y,z,dic['gender']])
+                        img_id += 1
+    return np_images
 
-        
-
-    @property
-    def ids(self):
-        return self._ids
-
-    def __len__(self):
-        return len(self.ids)
-
-    def __repr__(self):
-        return 'Dataset (%s, %d examples)' % (
-            self.name,
-            len(self)
-        )
-
-
-def create_default_splits(path, is_train=True, h=256, w=256):
-    ids = all_ids(path)
-    total_dataset_size = len(ids)
-    print(total_dataset_size)
-    test_size = 100  #these are 100 families which are made unseen during test
-    training_size = total_dataset_size - test_size
-
-    dataset_train = Dataset(ids[0:training_size], name='train', h=h, w=w, is_train=False)
-    dataset_test = Dataset(ids[training_size:], name='test', h=h, w=w, is_train=False)
-    return dataset_train, dataset_test
 
 def all_ids(path):
-    _ids = []
+    family_ids = []
 
     for r, d, f in os.walk(path):
-        _ids=d
+        family_ids=d
         break
 
     rs = np.random.RandomState(123)
-    rs.shuffle(_ids)
-    return _ids
+    rs.shuffle(family_ids)
+    return family_ids

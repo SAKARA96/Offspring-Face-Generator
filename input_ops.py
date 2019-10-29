@@ -31,7 +31,6 @@ def create_input_ops(dataset,
     '''
     Return a batched tensor for the inputs from the dataset.
     '''
-    family_ops = {}
     input_ops = {}
 
     if data_id is None:
@@ -42,43 +41,29 @@ def create_input_ops(dataset,
 
     # single operations
     with tf.device("/cpu:0"), tf.name_scope(scope):
-        family_ops['id'] = tf.train.string_input_producer(
+        input_ops['id'] = tf.train.string_input_producer(
            tf.convert_to_tensor(data_id),
             capacity=128
-        ).dequeue(name='family_ids_dequeue')
+        ).dequeue(name='input_ids_dequeue')
 
-        #m = dataset.get_data(data_id[0])
-
+        m = dataset.get_data(data_id[0])
 
         def load_fn(id):
             # image [h, w, c]
             valid = False
             while not valid:
                 try:
-                    image = dataset.get_data(id) # return dict  of family tuples corresponding to 1 family
+                    image = dataset.get_data(id)
                     valid = True
                 except:
                     pass
-            print(image)
+            return (id, image.astype(np.float32))
 
-            return image #This is an dict of tuple of (family_id, numpy array of 4 layer image)
-
-        family_images = tf.py_func(
-            load_fn, inp=[family_ops['id']],
-            Tout=[tf.Tensor],
-            name='func_hp'
-        )
-
-        def load_img(id):
-            return (id, family_images[id])
-        
-        input_ops['id'], inputs_ops['image']  = tf.py_func(
-            load_img, inp=family_images.keys(),
+        input_ops['id'], input_ops['image'] = tf.py_func(
+            load_fn, inp=[input_ops['id']],
             Tout=[tf.string, tf.float32],
             name='func_hp'
         )
-
-
 
         input_ops['id'].set_shape([])
         input_ops['image'].set_shape(list(m.shape))
